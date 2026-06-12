@@ -1,4 +1,7 @@
-FROM madiator2011/kasm-runpod-desktop:mldesk
+# ============================================================================
+# BASE : KasmVNC Ubuntu 22.04 (compatible GPU RunPod)
+# ============================================================================
+FROM kasmweb/ubuntu-jammy-desktop:1.14.0
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV CUDA_VISIBLE_DEVICES=0
@@ -6,65 +9,45 @@ ENV TORCH_CUDA_ARCH_LIST="8.9"
 ENV OMP_NUM_THREADS=8
 ENV PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512
 
+USER root
+
 # ============================================================================
-# Mise à jour et installation des paquets (compatibles Ubuntu 20.04)
+# Mise à jour et installation des paquets système
 # ============================================================================
 RUN apt-get update && apt-get install -y --no-install-recommends \
     wget curl git vim nano sudo \
     build-essential cmake \
     ffmpeg libavcodec-extra \
     python3.10 python3.10-venv python3.10-dev \
+    libxcb-cursor0 libxcb-util1 libxcb-icccm4 libxcb-keysyms1 \
+    libxcb-randr0 libxcb-shape0 libxcb-xinerama0 libxcb-xfixes0 \
     libgl1-mesa-dri libgl1-mesa-glx \
     libvulkan1 mesa-vulkan-drivers \
     ocl-icd-opencl-dev opencl-headers \
     && apt-get clean
 
 # ============================================================================
-# Installation des bibliothèques X11 manquantes (via PPA si nécessaire)
+# OBS Studio, Google Chrome, Nginx RTMP
 # ============================================================================
-RUN add-apt-repository ppa:ubuntu-x-swat/updates -y && \
-    apt-get update && apt-get install -y \
-    libxcb-cursor0 libxcb-util1 libxcb-icccm4 libxcb-keysyms1 \
-    libxcb-randr0 libxcb-shape0 libxcb-xinerama0 libxcb-xfixes0 || true
-
-# ============================================================================
-# OBS Studio via PPA officiel
-# ============================================================================
-RUN add-apt-repository ppa:obsproject/obs-studio -y && \
-    apt-get update && apt-get install -y obs-studio
-
-# ============================================================================
-# Google Chrome
-# ============================================================================
+RUN apt-get install -y obs-studio nginx libnginx-mod-rtmp
 RUN wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
     && apt-get install -y ./google-chrome-stable_current_amd64.deb \
     && rm google-chrome-stable_current_amd64.deb
 
-# ============================================================================
-# Serveur RTMP (Nginx)
-# ============================================================================
-RUN apt-get install -y nginx libnginx-mod-rtmp
+# Configuration RTMP
 RUN echo "rtmp { server { listen 1935; chunk_size 8192; application live { live on; record off; } } }" > /etc/nginx/conf.d/rtmp.conf
 
 # ============================================================================
-# TensorRT (installé via pip + système)
+# TensorRT (optionnel, via pip)
 # ============================================================================
-RUN apt-get install -y software-properties-common && \
-    add-apt-repository ppa:graphics-drivers/ppa -y && \
-    apt-get update && apt-get install -y \
-    libnvinfer8 libnvinfer-dev libnvinfer-plugin8 || true
+RUN pip install tensorrt
 
 # ============================================================================
-# Python 3.10 et dépendances globales
+# Dépendances Python globales
 # ============================================================================
-RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1
 RUN python3.10 -m pip install --upgrade pip setuptools wheel
-
-# ============================================================================
-# Installation des dépendances Python
-# ============================================================================
 RUN pip install torch==2.1.0 torchvision==0.16.0 torchaudio==2.1.0 --index-url https://download.pytorch.org/whl/cu118
-RUN pip install onnxruntime-gpu==1.18.0 tensorrt
+RUN pip install onnxruntime-gpu==1.18.0
 RUN pip install opencv-python==4.10.0.84 opencv-contrib-python==4.10.0.84
 RUN pip install PySide6==6.6.1
 RUN pip install insightface==0.7.3
@@ -87,7 +70,7 @@ if [ ! -d /workspace/Deep-Live-Cam ]; then\n\
     source venv/bin/activate\n\
     pip install --upgrade pip\n\
     pip install torch==2.1.0 torchvision==0.16.0 torchaudio==2.1.0 --index-url https://download.pytorch.org/whl/cu118\n\
-    pip install onnxruntime-gpu==1.18.0 tensorrt opencv-python PySide6 insightface mediapipe\n\
+    pip install onnxruntime-gpu==1.18.0 opencv-python PySide6 insightface mediapipe\n\
     pip install -r requirements.txt\n\
     mkdir -p models\n\
     wget -O models/inswapper_128_fp16.onnx https://github.com/face-swap/inswapper/releases/download/v1.0.0/inswapper_128_fp16.onnx || true\n\
