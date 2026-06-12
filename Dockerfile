@@ -1,4 +1,4 @@
-FROM madiator2011/kasm-runpod-desktop:mldesk
+FROM kasmweb/ubuntu-jammy-desktop:1.14.0
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV CUDA_VISIBLE_DEVICES=0
@@ -8,20 +8,8 @@ ENV PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512
 
 USER root
 
-# ============================================================================
-# 1. Ajout des PPA et mise à jour complète
-# ============================================================================
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends software-properties-common wget gnupg curl && \
-    add-apt-repository ppa:deadsnakes/ppa -y && \
-    add-apt-repository ppa:obsproject/obs-studio -y && \
-    add-apt-repository ppa:ubuntu-x-swat/updates -y && \
-    apt-get update
-
-# ============================================================================
-# 2. Installation massive des paquets système (tout en une seule couche)
-# ============================================================================
-RUN apt-get install -y --no-install-recommends \
+# Mise à jour et installation de tous les paquets (Ubuntu 22.04)
+RUN apt-get update && apt-get install -y --no-install-recommends \
     wget curl git vim nano sudo \
     build-essential cmake \
     ffmpeg libavcodec-extra \
@@ -32,24 +20,18 @@ RUN apt-get install -y --no-install-recommends \
     libgl1-mesa-dri libgl1-mesa-glx \
     libvulkan1 mesa-vulkan-drivers \
     ocl-icd-opencl-dev opencl-headers \
-    obs-studio && \
-    apt-get clean
+    obs-studio \
+    && apt-get clean
 
-# ============================================================================
-# 3. Google Chrome (téléchargement direct)
-# ============================================================================
-RUN wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
-    apt-get install -y ./google-chrome-stable_current_amd64.deb && \
-    rm google-chrome-stable_current_amd64.deb
+# Google Chrome (dernière version stable)
+RUN wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
+    && apt-get install -y ./google-chrome-stable_current_amd64.deb \
+    && rm google-chrome-stable_current_amd64.deb
 
-# ============================================================================
-# 4. Configuration du serveur RTMP (low latency)
-# ============================================================================
+# Configuration serveur RTMP (ultra low latency)
 RUN echo "rtmp { server { listen 1935; chunk_size 8192; application live { live on; record off; } } }" > /etc/nginx/conf.d/rtmp.conf
 
-# ============================================================================
-# 5. Environnement Python global (TensorRT, PyTorch, ONNX, etc.)
-# ============================================================================
+# Installation des dépendances Python globales (GPU + outils)
 RUN python3.10 -m pip install --upgrade pip setuptools wheel && \
     pip install tensorrt && \
     pip install torch==2.1.0 torchvision==0.16.0 torchaudio==2.1.0 --index-url https://download.pytorch.org/whl/cu118 && \
@@ -60,9 +42,7 @@ RUN python3.10 -m pip install --upgrade pip setuptools wheel && \
     pip install mediapipe && \
     pip install numpy scikit-learn pillow scipy tqdm matplotlib ffmpeg-python pyinstaller
 
-# ============================================================================
-# 6. Script de démarrage (lance nginx et affiche les infos)
-# ============================================================================
+# Script de démarrage (lance Nginx et affiche les infos)
 RUN echo '#!/bin/bash\n\
 nginx\n\
 echo ""\n\
@@ -77,9 +57,7 @@ echo "============================================================"\n\
 echo ""\n\
 sleep infinity' > /start_services.sh && chmod +x /start_services.sh
 
-# ============================================================================
-# 7. Ports exposés (KasmVNC, SSH, RTMP, HTTP)
-# ============================================================================
+# Ports : KasmVNC (6901), SSH (22), RTMP (1935), HTTP (80)
 EXPOSE 6901 22 1935 80
 
 CMD ["/start_services.sh"]
