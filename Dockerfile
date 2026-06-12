@@ -3,39 +3,44 @@ FROM pytorch/pytorch:2.1.0-cuda11.8-cudnn8-runtime
 ENV DEBIAN_FRONTEND=noninteractive
 
 # ======================
-# Outils système de base
+# 1. Outils système de base
 # ======================
+# On ajoute 'gnupg' ici pour résoudre l'erreur et s'assurer que tout est bien installé.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     wget curl git vim nano sudo \
     ffmpeg \
     ca-certificates \
+    gnupg \
     && apt-get clean
 
 # ======================
-# Google Chrome (méthode moderne)
+# 2. Google Chrome (installation via le fichier .deb)
 # ======================
-RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg \
-    && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
-    && apt-get update \
-    && apt-get install -y google-chrome-stable
+# On télécharge le fichier .deb officiel et on l'installe directement,
+# ce qui est plus simple et évite de gérer les clés GPG.
+RUN wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
+    && apt-get install -y ./google-chrome-stable_current_amd64.deb \
+    && rm google-chrome-stable_current_amd64.deb \
+    && apt-get clean
 
 # ======================
-# OBS Studio
+# 3. OBS Studio
 # ======================
 RUN apt-get update && apt-get install -y --no-install-recommends \
     obs-studio \
     && apt-get clean
 
 # ======================
-# Serveur RTMP (Nginx)
+# 4. Serveur RTMP (Nginx)
 # ======================
 RUN apt-get update && apt-get install -y nginx libnginx-mod-rtmp \
     && apt-get clean
 
+# Configuration RTMP
 RUN echo "rtmp { server { listen 1935; chunk_size 4096; application live { live on; record off; } } }" > /etc/nginx/conf.d/rtmp.conf
 
 # ======================
-# Dépendances graphiques
+# 5. Dépendances graphiques (pour OBS et Chrome)
 # ======================
 RUN apt-get update && apt-get install -y \
     libxcb-cursor0 \
@@ -51,7 +56,7 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean
 
 # ======================
-# Script de démarrage
+# 6. Script de démarrage
 # ======================
 RUN echo '#!/bin/bash\n\
 nginx\n\
@@ -60,4 +65,5 @@ echo "📺 Envoie ton flux depuis IP Webcam Pro vers rtmp://<IP_DU_POD>/live/tel
 echo "🖥️ Tu peux maintenant lancer Deep-Live-Cam et OBS depuis le bureau."\n\
 sleep infinity' > /start_services.sh && chmod +x /start_services.sh
 
+# Ports exposés
 EXPOSE 1935 80
