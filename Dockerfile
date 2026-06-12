@@ -12,13 +12,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean
 
 # ======================
-# Google Chrome
+# Google Chrome (méthode moderne)
 # ======================
-RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
-    && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
+RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg \
+    && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
     && apt-get update \
-    && apt-get install -y google-chrome-stable \
-    && apt-get clean
+    && apt-get install -y google-chrome-stable
 
 # ======================
 # OBS Studio
@@ -33,12 +32,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN apt-get update && apt-get install -y nginx libnginx-mod-rtmp \
     && apt-get clean
 
-# Configuration RTMP
 RUN echo "rtmp { server { listen 1935; chunk_size 4096; application live { live on; record off; } } }" > /etc/nginx/conf.d/rtmp.conf
 
 # ======================
-# Dépendances graphiques supplémentaires
-# (nécessaires pour OBS/Chrome sous X11)
+# Dépendances graphiques
 # ======================
 RUN apt-get update && apt-get install -y \
     libxcb-cursor0 \
@@ -55,7 +52,6 @@ RUN apt-get update && apt-get install -y \
 
 # ======================
 # Script de démarrage
-# (lance Nginx, puis laisse l'utilisateur démarrer le reste depuis le bureau)
 # ======================
 RUN echo '#!/bin/bash\n\
 nginx\n\
@@ -64,5 +60,4 @@ echo "📺 Envoie ton flux depuis IP Webcam Pro vers rtmp://<IP_DU_POD>/live/tel
 echo "🖥️ Tu peux maintenant lancer Deep-Live-Cam et OBS depuis le bureau."\n\
 sleep infinity' > /start_services.sh && chmod +x /start_services.sh
 
-# Ports exposés
 EXPOSE 1935 80
