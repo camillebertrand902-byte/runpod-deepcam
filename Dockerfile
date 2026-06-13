@@ -1,6 +1,10 @@
 # ==============================================================================
-# Base NVIDIA CUDA 12.1 + Ubuntu 22.04 (drivers, dépôts complets)
+# DOCKERFILE ULTIME – Machine de guerre pour Deep-Live-Cam sur RunPod
+# Base : NVIDIA CUDA 12.1 + Ubuntu 22.04 (dépôts complets)
+# Bureau : XFCE + TigerVNC + noVNC (accès navigateur)
+# Services : Nginx RTMP (port 1935), OBS Studio, Chrome, PyTorch, TensorRT
 # ==============================================================================
+
 FROM nvidia/cuda:12.1.0-runtime-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -21,7 +25,7 @@ RUN echo "deb http://archive.ubuntu.com/ubuntu jammy main universe restricted mu
     apt-get update
 
 # ==============================================================================
-# 2. Installation de tous les paquets système (aucun manquant)
+# 2. Installation massive des paquets systèmes (tous disponibles)
 # ==============================================================================
 RUN apt-get install -y --no-install-recommends \
     wget curl git vim nano sudo \
@@ -34,30 +38,24 @@ RUN apt-get install -y --no-install-recommends \
     libgl1-mesa-dri libgl1-mesa-glx \
     libvulkan1 mesa-vulkan-drivers \
     ocl-icd-opencl-dev opencl-headers \
+    obs-studio \
     && apt-get clean
 
 # ==============================================================================
-# 3. Google Chrome
+# 3. Google Chrome (dernière version stable)
 # ==============================================================================
 RUN wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
     && apt-get install -y ./google-chrome-stable_current_amd64.deb \
     && rm google-chrome-stable_current_amd64.deb
 
 # ==============================================================================
-# 4. OBS Studio (téléchargement direct)
-# ==============================================================================
-RUN wget -q https://github.com/obsproject/obs-studio/releases/download/30.1.2/obs-studio-30.1.2-linux-x86_64.deb \
-    && apt-get install -y ./obs-studio-30.1.2-linux-x86_64.deb \
-    && rm -f obs-studio-30.1.2-linux-x86_64.deb
-
-# ==============================================================================
-# 5. noVNC (accès web au bureau)
+# 4. noVNC – accès web au bureau
 # ==============================================================================
 RUN git clone https://github.com/novnc/noVNC.git /opt/novnc && \
     git clone https://github.com/novnc/websockify /opt/novnc/utils/websockify
 
 # ==============================================================================
-# 6. Configuration TigerVNC (mot de passe fixe)
+# 5. Configuration TigerVNC (mot de passe : runpod)
 # ==============================================================================
 RUN mkdir -p /root/.vnc && \
     echo "runpod" | vncpasswd -f > /root/.vnc/passwd && \
@@ -68,12 +66,12 @@ startxfce4 &
 EOF
 
 # ==============================================================================
-# 7. Configuration serveur RTMP (ultra low latency)
+# 6. Configuration du serveur RTMP (ultra low latency)
 # ==============================================================================
 RUN echo "rtmp { server { listen 1935; chunk_size 8192; application live { live on; record off; } } }" > /etc/nginx/conf.d/rtmp.conf
 
 # ==============================================================================
-# 8. Dépendances Python (GPU + TensorRT + outils)
+# 7. Dépendances Python globales (GPU + TensorRT + outils)
 # ==============================================================================
 RUN python3 -m pip install --upgrade pip setuptools wheel && \
     pip install tensorrt && \
@@ -86,7 +84,7 @@ RUN python3 -m pip install --upgrade pip setuptools wheel && \
     pip install numpy scikit-learn pillow scipy tqdm matplotlib ffmpeg-python pyinstaller
 
 # ==============================================================================
-# 9. Script de démarrage (lance VNC, noVNC, Nginx)
+# 8. Script de démarrage (lance VNC, noVNC, Nginx)
 # ==============================================================================
 RUN echo '#!/bin/bash\n\
 vncserver :1 -geometry 1920x1080 -depth 24 -localhost no\n\
@@ -103,7 +101,7 @@ echo "============================================================"\n\
 sleep infinity' > /start_services.sh && chmod +x /start_services.sh
 
 # ==============================================================================
-# 10. Ports exposés
+# 9. Ports exposés (SSH, HTTP, RTMP, noVNC, VNC direct)
 # ==============================================================================
 EXPOSE 22 80 1935 8080 5901
 
