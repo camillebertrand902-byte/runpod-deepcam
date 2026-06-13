@@ -1,10 +1,6 @@
 # ==============================================================================
-# DOCKERFILE ULTIME – Machine de guerre pour Deep-Live-Cam sur RunPod
-# Base : NVIDIA CUDA 12.1 + Ubuntu 22.04 (dépôts complets)
-# Bureau : XFCE + TigerVNC + noVNC (accès navigateur)
-# Services : Nginx RTMP (port 1935), OBS Studio, Chrome, PyTorch, TensorRT
+# Base NVIDIA CUDA 12.1 + Ubuntu 22.04
 # ==============================================================================
-
 FROM nvidia/cuda:12.1.0-runtime-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -16,7 +12,7 @@ ENV PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512
 USER root
 
 # ==============================================================================
-# 1. Configuration des dépôts Ubuntu (main, universe, restricted, multiverse)
+# 1. Configuration des dépôts (main, universe, restricted, multiverse)
 # ==============================================================================
 RUN echo "deb http://archive.ubuntu.com/ubuntu jammy main universe restricted multiverse" > /etc/apt/sources.list && \
     echo "deb http://archive.ubuntu.com/ubuntu jammy-updates main universe restricted multiverse" >> /etc/apt/sources.list && \
@@ -25,7 +21,7 @@ RUN echo "deb http://archive.ubuntu.com/ubuntu jammy main universe restricted mu
     apt-get update
 
 # ==============================================================================
-# 2. Installation massive des paquets systèmes (tous disponibles)
+# 2. Installation de tous les paquets (y compris tigervnc-common)
 # ==============================================================================
 RUN apt-get install -y --no-install-recommends \
     wget curl git vim nano sudo \
@@ -42,20 +38,25 @@ RUN apt-get install -y --no-install-recommends \
     && apt-get clean
 
 # ==============================================================================
-# 3. Google Chrome (dernière version stable)
+# 3. Vérification que vncpasswd est disponible (optionnel mais sécurisé)
+# ==============================================================================
+RUN which vncpasswd || (apt-get update && apt-get install -y tigervnc-common)
+
+# ==============================================================================
+# 4. Google Chrome
 # ==============================================================================
 RUN wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
     && apt-get install -y ./google-chrome-stable_current_amd64.deb \
     && rm google-chrome-stable_current_amd64.deb
 
 # ==============================================================================
-# 4. noVNC – accès web au bureau
+# 5. noVNC (accès web au bureau)
 # ==============================================================================
 RUN git clone https://github.com/novnc/noVNC.git /opt/novnc && \
     git clone https://github.com/novnc/websockify /opt/novnc/utils/websockify
 
 # ==============================================================================
-# 5. Configuration TigerVNC (mot de passe : runpod)
+# 6. Configuration TigerVNC (création du mot de passe avec vncpasswd)
 # ==============================================================================
 RUN mkdir -p /root/.vnc && \
     echo "runpod" | vncpasswd -f > /root/.vnc/passwd && \
@@ -66,12 +67,12 @@ startxfce4 &
 EOF
 
 # ==============================================================================
-# 6. Configuration du serveur RTMP (ultra low latency)
+# 7. Configuration serveur RTMP
 # ==============================================================================
 RUN echo "rtmp { server { listen 1935; chunk_size 8192; application live { live on; record off; } } }" > /etc/nginx/conf.d/rtmp.conf
 
 # ==============================================================================
-# 7. Dépendances Python globales (GPU + TensorRT + outils)
+# 8. Dépendances Python globales
 # ==============================================================================
 RUN python3 -m pip install --upgrade pip setuptools wheel && \
     pip install tensorrt && \
@@ -84,7 +85,7 @@ RUN python3 -m pip install --upgrade pip setuptools wheel && \
     pip install numpy scikit-learn pillow scipy tqdm matplotlib ffmpeg-python pyinstaller
 
 # ==============================================================================
-# 8. Script de démarrage (lance VNC, noVNC, Nginx)
+# 9. Script de démarrage (lance VNC, noVNC, Nginx)
 # ==============================================================================
 RUN echo '#!/bin/bash\n\
 vncserver :1 -geometry 1920x1080 -depth 24 -localhost no\n\
@@ -101,7 +102,7 @@ echo "============================================================"\n\
 sleep infinity' > /start_services.sh && chmod +x /start_services.sh
 
 # ==============================================================================
-# 9. Ports exposés (SSH, HTTP, RTMP, noVNC, VNC direct)
+# 10. Ports exposés
 # ==============================================================================
 EXPOSE 22 80 1935 8080 5901
 
