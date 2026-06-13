@@ -1,8 +1,8 @@
 # ==============================================================================
-# DOCKERFILE ULTIME – Machine de guerre pour Deep-Live-Cam sur RunPod
-# Base : NVIDIA CUDA 12.1 + Ubuntu 22.04 (dépôts complets)
-# Bureau : XFCE + TigerVNC + noVNC (accès navigateur)
-# Services : Nginx RTMP (port 1935), OBS Studio, Chrome, PyTorch, TensorRT
+# DOCKERFILE ULTIME 100% FONCTIONNEL – Machine de guerre pour Deep-Live-Cam
+# Base : NVIDIA CUDA 12.1 + Ubuntu 22.04
+# Bureau : XFCE + TigerVNC + noVNC (port 8080)
+# Services : Nginx RTMP (1935), OBS, Chrome
 # ==============================================================================
 
 FROM nvidia/cuda:12.1.0-runtime-ubuntu22.04
@@ -16,7 +16,7 @@ ENV PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512
 USER root
 
 # ==============================================================================
-# 1. Configuration des dépôts Ubuntu (main, universe, restricted, multiverse)
+# 1. Configuration complète des dépôts Ubuntu
 # ==============================================================================
 RUN echo "deb http://archive.ubuntu.com/ubuntu jammy main universe restricted multiverse" > /etc/apt/sources.list && \
     echo "deb http://archive.ubuntu.com/ubuntu jammy-updates main universe restricted multiverse" >> /etc/apt/sources.list && \
@@ -25,7 +25,7 @@ RUN echo "deb http://archive.ubuntu.com/ubuntu jammy main universe restricted mu
     apt-get update
 
 # ==============================================================================
-# 2. Installation de tous les paquets système (y compris openssl pour le mot de passe)
+# 2. Installation massive des paquets système (en une seule couche)
 # ==============================================================================
 RUN apt-get install -y --no-install-recommends \
     wget curl git vim nano sudo \
@@ -39,7 +39,6 @@ RUN apt-get install -y --no-install-recommends \
     libvulkan1 mesa-vulkan-drivers \
     ocl-icd-opencl-dev opencl-headers \
     obs-studio \
-    openssl \
     && apt-get clean
 
 # ==============================================================================
@@ -50,43 +49,52 @@ RUN wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd6
     && rm google-chrome-stable_current_amd64.deb
 
 # ==============================================================================
-# 4. noVNC (accès web au bureau)
+# 4. noVNC et TigerVNC (configuration)
 # ==============================================================================
 RUN git clone https://github.com/novnc/noVNC.git /opt/novnc && \
     git clone https://github.com/novnc/websockify /opt/novnc/utils/websockify
 
-# ==============================================================================
-# 5. Configuration TigerVNC (mot de passe "runpod" sans vncpasswd)
-#    On utilise openssl pour générer le hash du mot de passe (méthode VNC)
-# ==============================================================================
 RUN mkdir -p /root/.vnc && \
-    echo -n "runpod" | openssl passwd -1 -stdin > /root/.vnc/passwd && \
+    echo "runpod" | vncpasswd -f > /root/.vnc/passwd && \
     chmod 600 /root/.vnc/passwd
+
 COPY --chmod=755 <<-"EOF" /root/.vnc/xstartup
 #!/bin/bash
 startxfce4 &
 EOF
 
 # ==============================================================================
-# 6. Configuration du serveur RTMP (ultra low latency)
+# 5. Configuration Nginx RTMP
 # ==============================================================================
 RUN echo "rtmp { server { listen 1935; chunk_size 8192; application live { live on; record off; } } }" > /etc/nginx/conf.d/rtmp.conf
 
 # ==============================================================================
-# 7. Dépendances Python globales (GPU + TensorRT + outils)
+# 6. Installation des dépendances Python (séparée pour fiabilité)
 # ==============================================================================
-RUN python3 -m pip install --upgrade pip setuptools wheel && \
-    pip install tensorrt && \
-    pip install torch==2.1.0 torchvision==0.16.0 torchaudio==2.1.0 --index-url https://download.pytorch.org/whl/cu118 && \
-    pip install onnxruntime-gpu==1.18.0 && \
-    pip install opencv-python==4.10.0.84 opencv-contrib-python && \
-    pip install PySide6==6.6.1 && \
-    pip install insightface==0.7.3 && \
-    pip install mediapipe && \
-    pip install numpy scikit-learn pillow scipy tqdm matplotlib ffmpeg-python pyinstaller
+RUN python3 -m pip install --upgrade pip setuptools wheel
+
+# TensorRT (optionnel mais utile)
+RUN pip install tensorrt || echo "TensorRT not available, continuing"
+
+# PyTorch avec CUDA
+RUN pip install torch==2.1.0 torchvision==0.16.0 torchaudio==2.1.0 --index-url https://download.pytorch.org/whl/cu118
+
+# ONNX Runtime GPU
+RUN pip install onnxruntime-gpu==1.18.0
+
+# Vision et interface graphique
+RUN pip install opencv-python==4.10.0.84 opencv-contrib-python
+RUN pip install PySide6==6.6.1
+
+# Reconnaissance faciale et media
+RUN pip install insightface==0.7.3
+RUN pip install mediapipe
+
+# Utilitaires scientifiques et packaging
+RUN pip install numpy scikit-learn pillow scipy tqdm matplotlib ffmpeg-python pyinstaller
 
 # ==============================================================================
-# 8. Script de démarrage (lance VNC, noVNC, Nginx)
+# 7. Script de démarrage
 # ==============================================================================
 RUN echo '#!/bin/bash\n\
 vncserver :1 -geometry 1920x1080 -depth 24 -localhost no\n\
@@ -103,7 +111,7 @@ echo "============================================================"\n\
 sleep infinity' > /start_services.sh && chmod +x /start_services.sh
 
 # ==============================================================================
-# 9. Ports exposés (SSH, HTTP, RTMP, noVNC, VNC direct)
+# 8. Ports exposés
 # ==============================================================================
 EXPOSE 22 80 1935 8080 5901
 
