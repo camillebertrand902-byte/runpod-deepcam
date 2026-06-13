@@ -1,3 +1,8 @@
+# =============================================================================
+# DOCKERFILE ULTIME POUR DEEP-LIVE-CAM AVEC KASMVNC
+# Base : kasmweb/ubuntu-jammy-desktop:1.14.0 (officiel, fiable)
+# =============================================================================
+
 FROM kasmweb/ubuntu-jammy-desktop:1.14.0
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -8,7 +13,9 @@ ENV PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512
 
 USER root
 
-# Mise à jour et installation de tous les paquets (Ubuntu 22.04)
+# ============================================================================
+# 1. Mise à jour et installation de tous les paquets système
+# ============================================================================
 RUN apt-get update && apt-get install -y --no-install-recommends \
     wget curl git vim nano sudo \
     build-essential cmake \
@@ -23,15 +30,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     obs-studio \
     && apt-get clean
 
-# Google Chrome (dernière version stable)
+# ============================================================================
+# 2. Google Chrome
+# ============================================================================
 RUN wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
     && apt-get install -y ./google-chrome-stable_current_amd64.deb \
     && rm google-chrome-stable_current_amd64.deb
 
-# Configuration serveur RTMP (ultra low latency)
+# ============================================================================
+# 3. Configuration du serveur RTMP (ultra low latency)
+# ============================================================================
 RUN echo "rtmp { server { listen 1935; chunk_size 8192; application live { live on; record off; } } }" > /etc/nginx/conf.d/rtmp.conf
 
-# Installation des dépendances Python globales (GPU + outils)
+# ============================================================================
+# 4. Installation des dépendances Python (GPU + TensorRT + outils)
+# ============================================================================
 RUN python3.10 -m pip install --upgrade pip setuptools wheel && \
     pip install tensorrt && \
     pip install torch==2.1.0 torchvision==0.16.0 torchaudio==2.1.0 --index-url https://download.pytorch.org/whl/cu118 && \
@@ -42,7 +55,9 @@ RUN python3.10 -m pip install --upgrade pip setuptools wheel && \
     pip install mediapipe && \
     pip install numpy scikit-learn pillow scipy tqdm matplotlib ffmpeg-python pyinstaller
 
-# Script de démarrage (lance Nginx et affiche les infos)
+# ============================================================================
+# 5. Script de démarrage (lance Nginx et affiche les infos)
+# ============================================================================
 RUN echo '#!/bin/bash\n\
 nginx\n\
 echo ""\n\
@@ -57,7 +72,12 @@ echo "============================================================"\n\
 echo ""\n\
 sleep infinity' > /start_services.sh && chmod +x /start_services.sh
 
-# Ports : KasmVNC (6901), SSH (22), RTMP (1935), HTTP (80)
+# ============================================================================
+# 6. Ports exposés (KasmVNC, SSH, RTMP, HTTP)
+# ============================================================================
 EXPOSE 6901 22 1935 80
 
+# ============================================================================
+# 7. Commande par défaut
+# ============================================================================
 CMD ["/start_services.sh"]
